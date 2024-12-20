@@ -8,17 +8,13 @@ format: html
 
 library(tidyverse)
 library(highcharter)
+library(sjlabelled)
 
 
-
-snap_df <- rbind.data.frame(
-  read_csv("data/snap_1989_2024_monthly_2024_4.csv"), 
-  read_csv("data/snap_1989_2024_monthly_2024_5.csv"), 
-  read_csv("data/snap_1989_2024_monthly_2024_6.csv"), 
-  read_csv("data/snap_1989_2024_monthly_2024_7.csv"), 
-  read_csv("data/snap_1989_2024_monthly_2024_8.csv"), 
+snap_df <- as.data.frame(
   read_csv("data/snap_1989_2024_monthly_2024_9.csv")
 )
+
 
 
 
@@ -37,11 +33,122 @@ dict <- dict %>%
 
   
 
-library(sjlabelled)
+
 
 
 snap_df <- set_label(snap_df, 
                      dict$label)
+
+
+
+```
+
+```{r}
+
+Hmisc::describe(snap_df)
+
+## avg benefits per person/household are sometimes negative
+## percentage change in benefits receivers could be as high as -99.x %???
+## strange data with percentage or absolute changes in persons/households that receive benefits
+
+
+
+## There are some anomalies in the data. For instance the number of households that receive SNAP benefits in AL in 2019 changes from 346,977 in Jan to 1663 in Feb and  back up to 342,619 in March 
+
+## can drop by -100 to -300% and sometimes can increase by 1000s of % points. 
+
+summary(snap_df$pchg_snaphh_1mo)
+
+Hmisc::describe(snap_df$pchg_snaphh_1mo)
+
+
+## a data set of just where we see massive anomalies. 
+## It looks like there could be genuine increases of 20% or more month over month. 
+
+weird_months <- snap_df %>% 
+  filter(abs(pchg_snaphh_1mo) >= 30) %>% 
+  select(state_abbrev, year, monthno)
+
+
+snap_df_anom <- snap_df %>% 
+  filter(paste0(state_abbrev, year, monthno) %in% ## print the weird month, preceding and following months. 
+           paste0(weird_months$state_abbrev, 
+                  weird_months$year, 
+                  weird_months$monthno) |
+          paste0(state_abbrev, year, monthno) %in% 
+           paste0(weird_months$state_abbrev, 
+                  weird_months$year, 
+                  weird_months$monthno -1) |
+           paste0(state_abbrev, year, monthno) %in% 
+           paste0(weird_months$state_abbrev, 
+                  weird_months$year, 
+                  weird_months$monthno + 1) ) %>% 
+  distinct() %>% 
+  select(1:6, pchg_snaphh_1mo) %>% 
+  mutate(pchg_snaphh_1mo = sprintf("%.2f",pchg_snaphh_1mo))
+
+
+big_delta <- snap_df %>% 
+    filter(abs(pchg_snaphh_1mo) > 40) %>% 
+    select(state_abbrev, year, monthno, pchg_snaphh_1mo) %>% 
+    mutate(type = if_else(pchg_snaphh_1mo >0, 'increase', 'dropoff'))
+  
+big_dropoff <- big_delta %>% 
+    filter(type == 'dropoff')
+  
+big_increase <- big_delta %>% 
+    filter(type == 'increase')
+  
+  ## flag as big drop off if the current month had a sudden 40% or larger decline and the next month had a 40% or larger rebound. 
+flag_big_dropoff <- snap_df %>% 
+    filter(pchg_snaphh_1mo < -40 &
+             paste0(state_abbrev, year, monthno) %in%
+              paste0(big_increase$state_abbrev, 
+                     big_increase$year, 
+                     big_increase$monthno-1))
+  
+flag_big_increase <- snap_df %>% 
+  filter(pchg_snaphh_1mo > 40 &  ## this month is big increase.
+           paste0(state_abbrev, year, monthno) %in%  ## next month is big drop off
+              paste0(big_dropoff$state_abbrev, 
+                     big_dropoff$year, 
+                     big_dropoff$monthno+1))
+
+snap_df2 <- snap_df %>% 
+  mutate(flag_big_dropoff = if_else(paste0(state_abbrev, year, monthno) %in%
+                            paste0(flag_big_dropoff$state_abbrev, 
+                                   flag_big_dropoff$year, 
+                                   flag_big_dropoff$monthno), 1, 0)) %>% 
+  mutate(snaphh2 = if_else(flag_big_dropoff == 1, NA, snaphh), 
+         snapp2 = if_else(flag_big_dropoff == 1, NA, snapp))
+
+
+
+snap_df2 <- snap_df2 %>% 
+  mutate(ym = paste(year, monthno, sep = "-"), 
+         ym = lubridate::ym(ym)) %>% 
+  mutate(pct_snapp2 = snapp2/totpop_2010 * 100)  ## percentage of pop getting SNAP benefits.
+  
+
+
+
+
+
+
+
+```
+
+```{r}
+snap_df2 %>% 
+  ggplot(aes(x = ym, y = pct_snapp2, group = state_abbrev, 
+             col = state_abbrev))+
+  geom_line()
+
+
+
+
+
+
 
 
 
