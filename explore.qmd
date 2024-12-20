@@ -1,0 +1,49 @@
+---
+title: "explore"
+format: html
+
+---
+
+```{r, warning=FALSE, message=FALSE, include=FALSE}
+
+library(tidyverse)
+library(highcharter)
+
+
+
+snap_df <- rbind.data.frame(
+  read_csv("data/snap_1989_2024_monthly_2024_4.csv"), 
+  read_csv("data/snap_1989_2024_monthly_2024_5.csv"), 
+  read_csv("data/snap_1989_2024_monthly_2024_6.csv"), 
+  read_csv("data/snap_1989_2024_monthly_2024_7.csv"), 
+  read_csv("data/snap_1989_2024_monthly_2024_8.csv"), 
+  read_csv("data/snap_1989_2024_monthly_2024_9.csv")
+)
+
+
+
+## make a data dictionary from text file. 
+dict = read.table("data/dictionary.txt", sep = "-") 
+
+dict <- dict %>% 
+  t() %>%
+  as_tibble() %>% 
+  mutate(V1 = separate_wider_delim(., cols = V1,
+                                   delim = ":", 
+                                   names = c("value", "label")
+                                   )) %>% 
+  unnest() %>% 
+  as_tibble()
+
+  
+
+library(sjlabelled)
+
+
+snap_df <- set_label(snap_df, 
+                     dict$label)
+
+
+
+```
+
