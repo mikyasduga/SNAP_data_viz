@@ -133,14 +133,14 @@ snap_df2 <- snap_df %>%
                              flag_big_increase == 1), NA, snapp))
 
 
-
+## calculation of percentage of population recieving benefits from 2010 population data available in the dataset. 
 snap_df2 <- snap_df2 %>% 
   mutate(ym = paste(year, monthno, sep = "-"), 
          ym = lubridate::ym(ym)) %>% 
   mutate(pct_snapp2 = snapp2/totpop_2010 * 100) ## percentage of pop getting SNAP benefits.
   
 
-
+## Import population data from the USDA website. 
 pop_data <- read_csv("data/pop data.csv", 
                      col_names = FALSE) %>% 
   mutate(X1 = if_else(X1 == "United States", "US", X1)) %>%  #rename to US to match SNAP data. 
